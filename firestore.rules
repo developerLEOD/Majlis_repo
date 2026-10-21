@@ -17,7 +17,8 @@ service cloud.firestore {
     function isAuthorizedFacilitator() {
       return request.auth != null && (
         request.auth.token.email.lower() == 'araizhasan00@gmail.com' ||
-        request.auth.token.email.lower() == 'thewisdomlounge1@gmail.com'
+        request.auth.token.email.lower() == 'thewisdomlounge1@gmail.com' ||
+        request.auth.token.email.lower() == 'developertwl@gmail.com'
       );
     }
 

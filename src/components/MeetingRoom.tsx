@@ -44,6 +44,7 @@ import { IslamicStarRosette } from './common/IslamicStarRosette';
 import { HoneycombGrid } from './common/HoneycombGrid';
 import { useAuth } from '../context/AuthContext';
 import { createMixedAudioStream } from '../utils/media';
+import { backgroundAudioBridge } from '../services/backgroundAudioBridge';
 import heroStainedGlassImg from '../assets/images/hero_stained_glass_1791132771042.jpg';
 import {
   buildMeetingInviteUrl,
@@ -76,7 +77,8 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
   onEndOrLeaveMeeting,
 }) => {
   const { isModerator } = useAuth();
-  const effectiveIsHost = Boolean(initialIsHost || isModerator);
+  // Only authorized accounts can hold facilitator / moderator privileges
+  const effectiveIsHost = Boolean(initialIsHost && isModerator);
 
   // State
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -208,7 +210,7 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
 
     const client = new MeetingClient({
       onRoomJoined: (data) => {
-        setIsHost(data.isHost || effectiveIsHost);
+        setIsHost(effectiveIsHost || (data.isHost && isModerator));
         setIsLocked(data.locked);
         if (data.title) {
           setCurrentTitle(data.title);
@@ -267,6 +269,7 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
       onUserLeft: (leftUserId, leftName) => {
         const idStr = String(leftUserId);
         if (!idStr || idStr === userId) return;
+        backgroundAudioBridge.unregisterRemoteStream(idStr);
         setParticipants((prev) => prev.filter((p) => String(p.id) !== idStr));
         videoElementsRef.current.delete(idStr);
         setPinnedUserId((current) => (current === idStr ? null : current));
@@ -276,6 +279,8 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
       onRemoteStream: (remoteUserId, stream) => {
         const idStr = String(remoteUserId);
         if (!idStr || idStr === userId) return;
+        // Keep remote stream audio actively playing in background even if tab is unfocused
+        backgroundAudioBridge.registerRemoteStream(idStr, stream);
         setParticipants((prev) => {
           const index = prev.findIndex((p) => String(p.id) === idStr);
           if (index >= 0) {
@@ -489,8 +494,12 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
     clientRef.current = client;
     client.connect(roomId, userId, userName, effectiveIsHost, initialStream, sessionTitle);
 
+    // Initialize background audio bridge to keep outgoing/incoming voice uninterrupted when switching tabs or apps
+    backgroundAudioBridge.init(sessionTitle || `Majlis (${roomId})`);
+
     return () => {
       client.leave();
+      backgroundAudioBridge.cleanup();
     };
   }, [roomId, userId]);
 
@@ -1378,16 +1387,18 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
             );
           })()}
 
-          {/* Persistent Remote Audio Bridge ensuring audio is always audible for all attendees and screen shares */}
-          <div className="hidden pointer-events-none" aria-hidden="true">
+          {/* Persistent Remote Audio Bridge ensuring audio is always audible for all attendees and screen shares across tab switches */}
+          <div className="absolute top-0 left-0 w-0 h-0 overflow-hidden opacity-0 pointer-events-none" aria-hidden="true">
             {participants
               .filter((p) => !p.isLocal && p.stream)
               .map((p) => (
                 <audio
                   key={`audio-bridge-${p.id}`}
                   ref={(el) => {
-                    if (el && p.stream && el.srcObject !== p.stream) {
-                      el.srcObject = p.stream;
+                    if (el && p.stream) {
+                      if (el.srcObject !== p.stream) {
+                        el.srcObject = p.stream;
+                      }
                       el.play().catch(() => {});
                     }
                   }}

@@ -108,8 +108,8 @@ export async function getLocalUserMedia(
   const constraints: MediaStreamConstraints = {
     audio: audio
       ? preferredAudioId
-        ? { deviceId: { exact: preferredAudioId }, echoCancellation: true, noiseSuppression: true }
-        : { echoCancellation: true, noiseSuppression: true }
+        ? { deviceId: { exact: preferredAudioId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+        : { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
       : false,
     video: video
       ? preferredVideoId

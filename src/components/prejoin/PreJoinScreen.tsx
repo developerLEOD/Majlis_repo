@@ -41,8 +41,8 @@ export const PreJoinScreen: React.FC<PreJoinScreenProps> = ({
   const [isMicOn, setIsMicOn] = useState(true);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [micVolume, setMicVolume] = useState(0);
-  const [isHost, setIsHost] = useState(Boolean(isHostDefault || isModerator));
-  const [showHostNotice, setShowHostNotice] = useState(false);
+  // Only authorized accounts get moderator privileges or can choose moderator role
+  const [isHost, setIsHost] = useState(Boolean(isModerator && (isHostDefault !== false)));
   const [isConnecting, setIsConnecting] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -116,7 +116,8 @@ export const PreJoinScreen: React.FC<PreJoinScreenProps> = ({
     if (isConnecting) return;
     setIsConnecting(true);
 
-    const willBeHost = Boolean(isHost || isModerator);
+    // Only authorized accounts can be host/moderator, and only if they chose to join with controls
+    const willBeHost = Boolean(isModerator && isHost);
     const finalName = userName.trim() || (willBeHost ? 'Moderator' : 'Seeker');
     localStorage.setItem('infinitymeet_username', finalName);
 
@@ -254,43 +255,44 @@ export const PreJoinScreen: React.FC<PreJoinScreenProps> = ({
           </button>
         </div>
 
-        {/* Host Mode Role Toggle */}
-        <div className="p-3 bg-[#FAF8F5] border border-[#E6DFD5] rounded-sm space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-1.5">
-              <Crown className={`w-3.5 h-3.5 ${isHost ? 'text-[#E9A83A]' : 'text-[#8E7E73]'}`} />
-              <span className="font-semibold text-[#1C1917]">Enter as Moderator</span>
-            </div>
-            <button
-              type="button"
-              onClick={handleToggleHostMode}
-              className={`w-9 h-5 rounded-full relative flex items-center transition-colors px-0.5 ${
-                isHost ? 'bg-[#075E4A]' : 'bg-[#D9D0C3]'
-              }`}
-            >
-              <div
-                className={`w-4 h-4 rounded-full bg-white shadow transform transition-transform ${
-                  isHost ? 'translate-x-4' : 'translate-x-0'
+        {/* Authorized Moderator Role Selection — Shown ONLY if signed in with an authorized moderator account */}
+        {isModerator && (
+          <div className="p-3 bg-[#FAF8F5] border border-[#E9A83A]/40 rounded-sm space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-1.5">
+                <Crown className={`w-3.5 h-3.5 ${isHost ? 'text-[#E9A83A]' : 'text-[#8E7E73]'}`} />
+                <div>
+                  <span className="font-semibold text-[#1C1917] block">Join with Moderator Controls</span>
+                  <span className="text-[10px] text-[#8E7E73]">Authorized account ({user?.email})</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleToggleHostMode}
+                className={`w-9 h-5 rounded-full relative flex items-center transition-colors px-0.5 shrink-0 ${
+                  isHost ? 'bg-[#075E4A]' : 'bg-[#D9D0C3]'
                 }`}
-              />
-            </button>
-          </div>
-
-          {showHostNotice && !isModerator && (
-            <div className="p-2.5 bg-[#EFECE4] border border-[#D9D0C3] rounded-sm text-[11px] text-[#302116] space-y-1.5">
-              <p>Only authorized moderators (<strong>araizhasan00@gmail.com</strong>, <strong>thewisdomlounge1@gmail.com</strong> &amp; <strong>developertwl@gmail.com</strong>) can enter as moderators.</p>
-              {onOpenAuthModal && (
-                <button
-                  type="button"
-                  onClick={onOpenAuthModal}
-                  className="text-xs font-bold text-[#075E4A] underline flex items-center gap-1"
-                >
-                  <Key className="w-3 h-3 text-[#E9A83A]" /> Sign in as Moderator
-                </button>
-              )}
+                title={isHost ? 'Moderator controls enabled' : 'Joining as standard attendee'}
+              >
+                <div
+                  className={`w-4 h-4 rounded-full bg-white shadow transform transition-transform ${
+                    isHost ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+              </button>
             </div>
-          )}
-        </div>
+            <div className="text-[11px] text-[#68594E] bg-[#EFECE4] px-2.5 py-1.5 rounded-xs flex items-center justify-between">
+              <span>Status: <strong className={isHost ? 'text-[#075E4A]' : 'text-[#8E7E73]'}>{isHost ? 'Facilitator / Host' : 'Standard Attendee'}</strong></span>
+              <button
+                type="button"
+                onClick={handleToggleHostMode}
+                className="text-[10px] font-semibold text-[#075E4A] hover:underline"
+              >
+                {isHost ? 'Switch to Attendee' : 'Enable Controls'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4 pt-1 border-t border-[#E6DFD5]">

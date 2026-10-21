@@ -189,8 +189,8 @@ function MainAppContent() {
     localStorage.setItem('infinitymeet_username', chosenName);
     setPreJoinTarget(null);
 
-    // Grant host/moderator privileges if entering as host or authenticated as moderator
-    const effectiveIsHost = Boolean(params.isHost || isModerator);
+    // Only grant moderator/host privileges if signed in using an authorized moderator account
+    const effectiveIsHost = Boolean(isModerator && params.isHost);
 
     // Secure the live session and all its details in dedicated store
     sessionSecurityStore.saveSecuredMeeting({
