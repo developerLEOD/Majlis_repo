@@ -673,25 +673,41 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
       try {
         wasVideoOffRef.current = isVideoOff;
 
+        // Verify if getDisplayMedia is supported on this browser/device
+        if (!navigator.mediaDevices || typeof navigator.mediaDevices.getDisplayMedia !== 'function') {
+          showNotification('Screen sharing is not supported by your mobile browser. Try Chrome on Android or a desktop browser.');
+          return;
+        }
+
         let screenStream: MediaStream;
         try {
+          // Modern standard displayMedia call
           screenStream = await navigator.mediaDevices.getDisplayMedia({
-            video: {
-              cursor: 'always',
-            } as any,
-            audio: {
-              echoCancellation: false,
-              noiseSuppression: false,
-              autoGainControl: false,
-            } as any,
-            systemAudio: 'include',
-            selfBrowserSurface: 'include',
-          } as any);
-        } catch (e) {
-          screenStream = await navigator.mediaDevices.getDisplayMedia({
-            video: { cursor: 'always' } as any,
+            video: true,
             audio: true,
           });
+        } catch (initialErr: any) {
+          // If rejected due to audio constraint (very common on mobile browsers), retry with video only
+          if (initialErr?.name === 'NotAllowedError') {
+            showNotification('Screen sharing permission was cancelled or denied.');
+            return;
+          }
+
+          try {
+            screenStream = await navigator.mediaDevices.getDisplayMedia({
+              video: true,
+            });
+          } catch (retryErr: any) {
+            console.warn('Mobile screen sharing error:', retryErr);
+            if (retryErr?.name === 'NotAllowedError') {
+              showNotification('Screen sharing permission was cancelled or denied.');
+            } else if (retryErr?.name === 'NotSupportedError' || retryErr?.message?.includes('not supported')) {
+              showNotification('Screen sharing is restricted on this mobile OS / browser. Use Chrome on Android or Desktop.');
+            } else {
+              showNotification(`Screen sharing unavailable: ${retryErr?.message || 'Check browser permissions'}`);
+            }
+            return;
+          }
         }
 
         screenStreamRef.current = screenStream;
@@ -764,8 +780,13 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
             showNotification('Screen sharing ended');
           };
         }
-      } catch (err) {
-        console.warn('Screen share cancelled:', err);
+      } catch (err: any) {
+        console.warn('Screen share exception:', err);
+        if (err?.name === 'NotAllowedError') {
+          showNotification('Screen share was cancelled.');
+        } else {
+          showNotification('Unable to start screen share. Please check browser permissions.');
+        }
       }
     }
   };
